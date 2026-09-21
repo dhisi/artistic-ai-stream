@@ -14,7 +14,7 @@ const AGNES_URL = "https://apihub.agnes-ai.com/v1/images/generations";
 const AGNES_IMAGE_MODEL = "agnes-image-2.5-flash";
 // Keep one provider call shorter than the serverless request window. Durable
 // retries belong to the browser queue, not inside one long-lived server call.
-const IMAGE_REQUEST_TIMEOUT_MS = 35_000;
+const IMAGE_REQUEST_TIMEOUT_MS = 25_000;
 
 /**
  * Renderer-only art direction. The writing model describes only scene content;
@@ -2177,7 +2177,7 @@ const MIN_IMAGE_BYTES = 40_000;
  * entropy maths, no end-of-file probing — those were the slow part.
  */
 async function isRealImage(url: string): Promise<boolean> {
-  const gate = killableSignal(20_000);
+  const gate = killableSignal(5_000);
   try {
     const res = await fetch(url, { method: "HEAD", signal: gate.signal });
     if (!res.ok) return true; // can't tell — keep the panel
@@ -2231,9 +2231,12 @@ export async function generateImage(
   // rounds are waited out instead of spending one of the real attempts, so a
   // busy free tier no longer burns the whole retry ladder in a few seconds.
   const maxAttempts = Math.max(1, attempts);
+  // Single-attempt server calls return the first capacity response to the
+  // browser queue instead of looping internally behind an unchanged request.
+  const maxRateLimits = maxAttempts === 1 ? 1 : 8;
   let attempt = 0;
   let rateLimited = 0;
-  while (attempt < maxAttempts && rateLimited < 8) {
+  while (attempt < maxAttempts && rateLimited < maxRateLimits) {
     // A killed run never spends another image credit.
     assertActive();
     let throttled = false;

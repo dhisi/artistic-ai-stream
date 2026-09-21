@@ -153,7 +153,7 @@ function waitFor(s: KeyState, now: number): number {
  * Keep server calls short. Provider cooldown belongs to the continuous browser
  * run, not an isolated server instance that may disappear while waiting.
  */
-const MAX_GATE_WAIT_MS = 25_000;
+const MAX_GATE_WAIT_MS = 8_000;
 
 /** Round-robin cursor so consecutive renders spread across the pool. */
 let cursor = 0;
