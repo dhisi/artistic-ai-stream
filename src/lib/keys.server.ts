@@ -189,7 +189,11 @@ export async function withImageKey<T>(
       if (wait < best) best = wait;
     }
     if (picked >= 0) break;
-    // Just wait for the slot to free up, like story-weaver does
+    // Never hold a server function open indefinitely. The browser owns the
+    // durable retry queue and can move this panel to the back for a fresh call.
+    if (now >= deadline) {
+      throw new Error("Image service is busy; retrying shortly");
+    }
     await sleep(Math.min(best, 1_000));
   }
   cursor = (picked + 1) % all.length;
