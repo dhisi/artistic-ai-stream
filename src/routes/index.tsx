@@ -168,7 +168,7 @@ const CLIENT_BLANK_CHECK = false;
  * scripts stall. A batch now runs until it answers, fails, or Insta Kill.
  */
 /** Panels shown in the preview grid before "show all" (a 2h script has 1000+). */
-const PREVIEW_LIMIT = 60;
+const PREVIEW_LIMIT = 10;
 
 /* ------------------------------------------------------------------ */
 /* Crash-safe progress                                                 */
