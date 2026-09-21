@@ -1777,7 +1777,7 @@ function Index() {
                 className="mt-6 border-2 border-foreground px-4 py-2 font-display text-sm font-bold uppercase"
               >
                 {showAll
-                  ? "Show first 60 panels"
+                  ? "Show first 10 panels"
                   : `Show all ${shots.length.toLocaleString()} panels`}
               </button>
             )}
