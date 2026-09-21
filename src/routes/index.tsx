@@ -131,7 +131,7 @@ const PROMPT_RANGE = 15;
  * Five lanes stays under the six simultaneous connections a serverless edge
  * environment / browser host allows.
  */
-const IMAGE_CONCURRENCY = 3;
+const IMAGE_CONCURRENCY = 1;
 /** Panels carried by one request. One = per-panel progress, no head-of-line stall. */
 const IMAGE_BATCH = 1;
 /**

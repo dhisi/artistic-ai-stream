@@ -2333,8 +2333,9 @@ export async function generateImage(
     if (throttled) {
       rateLimited++;
       await pause(2_000);
+    } else {
+      attempt++;
     }
-    attempt++;
     await pause(500);
   }
   throw new Error(`Image generation failed: ${lastErr}`);
@@ -2483,7 +2484,6 @@ export async function renderPanel(
     } catch (e) {
       if (e instanceof KilledError) throw e;
       const msg = e instanceof Error ? e.message : String(e);
-      if (/429|rate limited|1015|too many requests|quota/i.test(msg)) throw e;
       errors.push(`round ${round + 1}: ${msg}`);
       if (contentRefusal(msg)) refused = true;
     }
