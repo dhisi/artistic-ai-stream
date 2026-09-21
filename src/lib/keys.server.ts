@@ -189,12 +189,14 @@ export async function withImageKey<T>(
       if (wait < best) best = wait;
     }
     if (picked >= 0) break;
-    // Never hold a server function open indefinitely. The browser owns the
-    // durable retry queue and can move this panel to the back for a fresh call.
+    // Never hold a server function open indefinitely. Once the gate window is
+    // spent, use the preferred key anyway so the request makes a real provider
+    // call instead of returning a synthetic busy error.
     if (now >= deadline) {
-      throw new Error("Image service is busy; retrying shortly");
+      picked = preferred;
+      break;
     }
-    await sleep(Math.min(best, 1_000));
+    await sleep(Math.min(best, 500));
   }
   cursor = (picked + 1) % all.length;
   const s = all[picked] as KeyState;
