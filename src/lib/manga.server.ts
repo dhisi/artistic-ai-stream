@@ -12,10 +12,9 @@ import { assertActive, killableSignal, KilledError } from "./kill-switch.server"
 /** The ONLY image provider and model in this app. */
 const AGNES_URL = "https://apihub.agnes-ai.com/v1/images/generations";
 const AGNES_IMAGE_MODEL = "agnes-image-2.5-flash";
-// A flash render answers in seconds. A request still open after two minutes is
-// a dead connection, not a slow drawing, and holding it open is what made lanes
-// look frozen for many minutes at a time.
-const IMAGE_REQUEST_TIMEOUT_MS = 120_000;
+// Keep one provider call shorter than the serverless request window. Durable
+// retries belong to the browser queue, not inside one long-lived server call.
+const IMAGE_REQUEST_TIMEOUT_MS = 25_000;
 
 /**
  * Renderer-only art direction. The writing model describes only scene content;
@@ -2178,7 +2177,7 @@ const MIN_IMAGE_BYTES = 40_000;
  * entropy maths, no end-of-file probing — those were the slow part.
  */
 async function isRealImage(url: string): Promise<boolean> {
-  const gate = killableSignal(20_000);
+  const gate = killableSignal(5_000);
   try {
     const res = await fetch(url, { method: "HEAD", signal: gate.signal });
     if (!res.ok) return true; // can't tell — keep the panel
@@ -2232,9 +2231,12 @@ export async function generateImage(
   // rounds are waited out instead of spending one of the real attempts, so a
   // busy free tier no longer burns the whole retry ladder in a few seconds.
   const maxAttempts = Math.max(1, attempts);
+  // Single-attempt server calls return the first capacity response to the
+  // browser queue instead of looping internally behind an unchanged request.
+  const maxRateLimits = maxAttempts === 1 ? 1 : 8;
   let attempt = 0;
   let rateLimited = 0;
-  while (attempt < maxAttempts && rateLimited < 8) {
+  while (attempt < maxAttempts && rateLimited < maxRateLimits) {
     // A killed run never spends another image credit.
     assertActive();
     let throttled = false;
@@ -2463,81 +2465,21 @@ export async function renderPanel(
     );
 
 
-  // Stage 1 — the prompt exactly as written, retried in full on fresh seeds and
-  // fresh keys. Each round itself retries inside generateImage, so a busy or
-  // flaky renderer is worked through instead of failing the panel.
-  let refused = false;
-  for (let round = 0; round < 3; round++) {
-    tries++;
-    try {
-      const url = await generateImage(
-        prompt,
-        seed + round * 1861,
-        slot + round,
-        bible,
-        3,
-        line,
-        continuity,
-        plan,
-      );
-      return { url, prompt, level: 0, tries, rewritten };
-    } catch (e) {
-      if (e instanceof KilledError) throw e;
-      const msg = e instanceof Error ? e.message : String(e);
-      errors.push(`round ${round + 1}: ${msg}`);
-      if (contentRefusal(msg)) refused = true;
-    }
-    await pause(400 * (round + 1));
-  }
-  // Stage 2 — softened wording (same scene, same length). Tried whenever the
-  // full prompt could not be rendered, not only on an explicit refusal: a free
-  // renderer often reports a content block as a plain failure.
-  const softened = promptVariant(prompt, 1, line);
-  if (softened && softened !== prompt) {
-    for (let round = 0; round < (refused ? 3 : 2); round++) {
-      tries++;
-      try {
-        const url = await generateImage(
-          softened,
-          seed + 5471 + round * 977,
-          slot + round,
-          bible,
-          3,
-          line,
-          continuity,
-          plan,
-        );
-        return { url, prompt: softened, level: 1, tries, rewritten };
-      } catch (e) {
-        if (e instanceof KilledError) throw e;
-        errors.push(`softened ${round + 1}: ${e instanceof Error ? e.message : String(e)}`);
-      }
-      await pause(500 * (round + 1));
-    }
+  // Exactly one provider attempt per server call. A failure returns promptly;
+  // the browser requeues the panel with a fresh seed and key slot. This keeps
+  // visible progress moving and prevents an edge request from outliving its
+  // gateway window while an internal retry ladder is still running.
+  tries++;
+  try {
+    const url = await generateImage(prompt, seed, slot, bible, 1, line, continuity, plan);
+    return { url, prompt, level: 0, tries, rewritten };
+  } catch (e) {
+    if (e instanceof KilledError) throw e;
+    const msg = e instanceof Error ? e.message : String(e);
+    errors.push(msg);
   }
 
-  // Stage 3 — last resort: the same scene rendered in the plainest possible
-  // wording, so a panel is produced rather than a hole in the story.
-  const plain = sanitizePrompt(softened || prompt)
-    .replace(/["'“”‘’]/g, "")
-    .replace(/\s{2,}/g, " ")
-    .trim()
-    .slice(0, 900);
-  if (plain.length >= 20) {
-    for (let round = 0; round < 3; round++) {
-      tries++;
-      try {
-        const url = await generateImage(plain, seed + 9109 + round * 613, slot + round, bible, 3, line, continuity, plan);
-        return { url, prompt: plain, level: 2, tries, rewritten };
-      } catch (e) {
-        if (e instanceof KilledError) throw e;
-        errors.push(`plain ${round + 1}: ${e instanceof Error ? e.message : String(e)}`);
-      }
-      await pause(600 * (round + 1));
-    }
-  }
-
-  throw new Error(`Image generation failed after ${tries} tries — ${errors.slice(-2).join(" | ")}`);
+  throw new Error(`Image generation failed — ${errors[0] ?? "provider did not return an image"}`);
 
 }
 

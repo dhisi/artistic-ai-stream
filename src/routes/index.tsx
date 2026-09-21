@@ -143,7 +143,7 @@ const MAX_RATE_LIMIT_WAITS = 20;
 
 /** True when a failure message is provider capacity pressure, not a bad panel. */
 function isRateLimitMessage(msg: string): boolean {
-  return /\b429\b|rate.?limit|too many requests|quota|1015/i.test(msg);
+  return /\b429\b|rate.?limit|too many requests|quota|1015|image service is busy/i.test(msg);
 }
 
 
@@ -303,7 +303,7 @@ function useSwallowCancellations() {
  * instance that went away mid-flight), so the lane drops it and redraws that
  * panel somewhere else instead of waiting out a silent connection.
  */
-const IMAGE_REQUEST_DEADLINE_MS = 300_000;
+const IMAGE_REQUEST_DEADLINE_MS = 45_000;
 
 
 async function getPrompts(input: PromptRequest): Promise<{ prompts: string[] }> {

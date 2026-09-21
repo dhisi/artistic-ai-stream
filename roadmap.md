@@ -12,3 +12,5 @@
       repeated 20-second probes that kept extending a 10-minute provider block
 - [x] Keep throttled checks outside the three-attempt budget, allow the render ladder
       to continue after 429 responses, and serialize image drawing to one worker
+- [x] Bound every panel request to one 25-second provider attempt and return retries
+      to the browser queue so a stalled draw cannot freeze the whole run
