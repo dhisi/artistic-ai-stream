@@ -131,7 +131,7 @@ const PROMPT_RANGE = 15;
  * Five lanes stays under the six simultaneous connections a serverless edge
  * environment / browser host allows.
  */
-const IMAGE_CONCURRENCY = 1;
+const IMAGE_CONCURRENCY = 3;
 /** Panels carried by one request. One = per-panel progress, no head-of-line stall. */
 const IMAGE_BATCH = 1;
 /**
@@ -146,14 +146,6 @@ function isRateLimitMessage(msg: string): boolean {
   return /\b429\b|rate.?limit|too many requests|quota|1015/i.test(msg);
 }
 
-/** Honor the provider's stated wait instead of immediately starting another wave. */
-function rateLimitWaitMs(msg: string): number {
-  const seconds = /waiting\s+(\d+)s/i.exec(msg)?.[1];
-  const parsed = seconds ? Number(seconds) * 1000 : 20_000;
-  // Cap the pause at 30s: a longer freeze looks like the run died, and the
-  // per-key pool usually has a free key well before then.
-  return Math.min(30_000, Math.max(3_000, parsed));
-}
 
 
 /**
@@ -726,9 +718,6 @@ function Index() {
       const MAX_IMAGE_ATTEMPTS = 10;
 
       let promptingDone = ranges.length === 0;
-      // Shared by every drawing lane in this page. One 429 pauses all lanes,
-      // preventing five workers from extending the same provider block.
-      let imageCooldownUntil = 0;
 
       const record = (index: number, next: Partial<Shot>) => {
         list = list.map((x) => (x.index === index ? { ...x, ...next } : x));
@@ -934,14 +923,6 @@ function Index() {
         console.log(`[client] worker ${me} started`);
         for (;;) {
           if (cancelRef.current) return;
-          const cooldownLeft = imageCooldownUntil - Date.now();
-          if (cooldownLeft > 0) {
-            setNote(
-              `Image service is busy — retrying in ${Math.ceil(cooldownLeft / 1000)}s · panels ${drawn}/${total}`,
-            );
-            await new Promise((r) => setTimeout(r, Math.min(1000, cooldownLeft)));
-            continue;
-          }
           const group = queue.splice(0, IMAGE_BATCH);
           if (group.length === 0) {
             if (promptingDone && inFlight === 0) {
@@ -973,9 +954,6 @@ function Index() {
             // separately so a permanently throttled panel cannot loop forever
             // and make a finished run look stuck.
             const nextWaits = (g.waits ?? 0) + (limited ? 1 : 0);
-            if (limited) {
-              imageCooldownUntil = Math.max(imageCooldownUntil, Date.now() + rateLimitWaitMs(msg));
-            }
             const canRetry =
               nextAttempts < MAX_IMAGE_ATTEMPTS && nextWaits <= MAX_RATE_LIMIT_WAITS;
             if (canRetry && !cancelRef.current) {
