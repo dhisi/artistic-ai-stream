@@ -10,3 +10,5 @@
       and pause every drawing lane together when Agnes returns a rate limit
 - [x] Honor Agnes 1015 Retry-After exactly and resume through one lane, preventing the
       repeated 20-second probes that kept extending a 10-minute provider block
+- [x] Keep throttled checks outside the three-attempt budget, allow the render ladder
+      to continue after 429 responses, and serialize image drawing to one worker
