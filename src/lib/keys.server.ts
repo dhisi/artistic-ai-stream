@@ -113,12 +113,8 @@ export function noteRateLimit(retryAfterMs?: number, hard = false, keyIndex = 0)
   const s = all[keyIndex] ?? all[0];
   if (!s) throw new Error("Missing AGNES_API_KEY (Agnes AI image key)");
   s.throttleLevel = Math.min(s.throttleLevel + 1, 3);
-  if (hard) s.hardBlocked = true;
-  const backoff = hard
-    ? 60_000
-    : retryAfterMs && retryAfterMs > 0
-      ? Math.min(Math.max(retryAfterMs, 2_000), 120_000)
-      : Math.min(3_000 + 2_000 * (s.throttleLevel - 1), 12_000);
+  // Cap cooldown to 5–10s max so requests aren't locked out indefinitely
+  const backoff = hard ? 10_000 : Math.min(3_000 + 2_000 * s.throttleLevel, 10_000);
   s.cooldownUntil = Math.max(s.cooldownUntil, Date.now() + backoff);
   return backoff;
 }
@@ -193,10 +189,8 @@ export async function withImageKey<T>(
       if (wait < best) best = wait;
     }
     if (picked >= 0) break;
-    if (now + best > deadline) {
-      throw new Error(`429 rate limited, waiting ${Math.max(1, Math.ceil(best / 1000))}s`);
-    }
-    await sleep(Math.min(best, 400));
+    // Just wait for the slot to free up, like story-weaver does
+    await sleep(Math.min(best, 1_000));
   }
   cursor = (picked + 1) % all.length;
   const s = all[picked] as KeyState;

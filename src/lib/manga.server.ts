@@ -2329,17 +2329,13 @@ export async function generateImage(
       return null;
     });
     if (url) return url;
+    // Wait briefly on the server and try the next attempt/key
     if (throttled) {
-      // A published server call has a finite lifetime and may be running in an
-      // isolate that cannot share this module's limiter with sibling calls.
-      // Return capacity pressure to the browser immediately; its durable queue
-      // will retry without consuming the panel's render-attempt budget.
       rateLimited++;
-      throw new Error(lastErr || "429 rate limited");
+      await pause(2_000);
     }
     attempt++;
-    // Short breather only: long back-offs made panels look stuck.
-    await pause(100);
+    await pause(500);
   }
   throw new Error(`Image generation failed: ${lastErr}`);
 }
