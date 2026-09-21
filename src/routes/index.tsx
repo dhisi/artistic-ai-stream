@@ -139,7 +139,7 @@ const IMAGE_BATCH = 1;
  * retried forever either: after this many rate-limited rounds the panel is
  * marked failed instead of circling the queue invisibly.
  */
-const MAX_RATE_LIMIT_WAITS = 3;
+const MAX_RATE_LIMIT_WAITS = 20;
 
 /** True when a failure message is provider capacity pressure, not a bad panel. */
 function isRateLimitMessage(msg: string): boolean {
@@ -150,7 +150,9 @@ function isRateLimitMessage(msg: string): boolean {
 function rateLimitWaitMs(msg: string): number {
   const seconds = /waiting\s+(\d+)s/i.exec(msg)?.[1];
   const parsed = seconds ? Number(seconds) * 1000 : 20_000;
-  return Math.min(15 * 60_000, Math.max(5_000, parsed));
+  // Cap the pause at 30s: a longer freeze looks like the run died, and the
+  // per-key pool usually has a free key well before then.
+  return Math.min(30_000, Math.max(3_000, parsed));
 }
 
 
