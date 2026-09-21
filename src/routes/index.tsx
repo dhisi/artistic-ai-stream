@@ -168,7 +168,7 @@ const CLIENT_BLANK_CHECK = false;
  * scripts stall. A batch now runs until it answers, fails, or Insta Kill.
  */
 /** Panels shown in the preview grid before "show all" (a 2h script has 1000+). */
-const PREVIEW_LIMIT = 60;
+const PREVIEW_LIMIT = 10;
 
 /* ------------------------------------------------------------------ */
 /* Crash-safe progress                                                 */
@@ -1777,7 +1777,7 @@ function Index() {
                 className="mt-6 border-2 border-foreground px-4 py-2 font-display text-sm font-bold uppercase"
               >
                 {showAll
-                  ? "Show first 60 panels"
+                  ? "Show first 10 panels"
                   : `Show all ${shots.length.toLocaleString()} panels`}
               </button>
             )}
